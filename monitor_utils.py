@@ -112,7 +112,9 @@ def _monitors_linux():
             name = parts[-1]
             geometry = parts[2]
             size, position = geometry.split("+", 1)
-            width, height = size.split("x")
+            width_str, height_str = size.split("x")
+            width = width_str.split("/")[0]
+            height = height_str.split("/")[0]
             x, y = position.split("+")
             monitors.append(Monitor(int(width), int(height), int(x), int(y), name=name))
     return monitors
