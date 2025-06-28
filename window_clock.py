@@ -114,6 +114,12 @@ class WindowClock:
         y_sign = '+' if monitor.y >= 0 else ''
         geometry = f"{monitor.width}x{monitor.height}{x_sign}{monitor.x}{y_sign}{monitor.y}"
         self.clock_window.geometry(geometry)
+        # Force fullscreen to ensure the window covers the entire selected monitor
+        try:
+            self.clock_window.attributes("-fullscreen", True)
+        except tk.TclError:
+            # attributes('-fullscreen') may not be supported on some platforms
+            pass
         self.canvas.configure(bg=self.bg_color)
         self.canvas.itemconfigure(self.text_item, font=(self.font_family, self.font_size), fill=self.font_color)
         if self.selection_rect:
