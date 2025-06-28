@@ -1,6 +1,6 @@
 import argparse
 import tkinter as tk
-from tkinter import colorchooser, ttk, font
+from tkinter import colorchooser, ttk, font, messagebox
 from datetime import datetime
 
 
@@ -24,26 +24,33 @@ def enumerate_monitors(root):
                 self.name = name
 
         monitors = [_Monitor(root.winfo_screenwidth(), root.winfo_screenheight())]
+        messagebox.showwarning(
+            "Monitor Detection",
+            "Multiple displays were not detected.\n"
+            "Install the 'screeninfo' package for multi-monitor support.")
 
     return monitors
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Simple window clock")
-    parser.add_argument('--bg-color', default='black', help='Background color')
+    parser.add_argument('--bg-color', default='black', help='Background color of the clock window')
+    parser.add_argument('--font-color', default='white', help='Color of the clock text')
     parser.add_argument('--font-size', type=int, default=48, help='Font size of the clock')
     parser.add_argument('--format', choices=['12', '24'], default='24', help='Time format (12 or 24 hour)')
     return parser.parse_args()
 
 
 class WindowClock:
-    def __init__(self, bg_color='black', font_size=48, time_format='24'):
+    def __init__(self, bg_color='black', font_color='white', font_size=48, time_format='24'):
         self.bg_color = bg_color
+        self.font_color = font_color
         self.font_size = font_size
         self.time_format = time_format
 
         self.font_family = 'Helvetica'
         self.selected_monitor_index = 0
+        self.dragging = False
 
         # Main window will hold settings
         self.settings_root = tk.Tk()
@@ -58,9 +65,20 @@ class WindowClock:
         self.clock_window.overrideredirect(True)
         self.clock_window.configure(bg=self.bg_color)
 
-        self.label = tk.Label(self.clock_window, fg='white', bg=self.bg_color,
-                              font=(self.font_family, self.font_size))
-        self.label.pack(expand=True, fill="both")
+        # Use a canvas so the text can be moved around
+        self.canvas = tk.Canvas(self.clock_window, bg=self.bg_color, highlightthickness=0)
+        self.canvas.pack(expand=True, fill="both")
+        self.text_item = self.canvas.create_text(100, 100, text='', fill=self.font_color,
+                                                 font=(self.font_family, self.font_size))
+        self.selection_rect = None
+
+        # Bind events for dragging and scaling
+        self.canvas.bind('<Button-1>', self.on_text_press)
+        self.canvas.bind('<B1-Motion>', self.on_text_drag)
+        self.canvas.bind('<ButtonRelease-1>', self.on_text_release)
+        self.canvas.bind('<MouseWheel>', self.on_mousewheel)
+        self.canvas.bind('<Button-4>', self.on_mousewheel)  # Linux scroll up
+        self.canvas.bind('<Button-5>', self.on_mousewheel)  # Linux scroll down
 
         self.apply_settings()
         self.update_clock()
@@ -84,8 +102,8 @@ class WindowClock:
         tk.Label(self.settings_root, text="Font Size:").grid(row=2, column=0, sticky="e")
         tk.Spinbox(self.settings_root, from_=10, to=400, textvariable=self.font_size_var).grid(row=2, column=1, pady=2)
 
-        # Background color button
-        tk.Button(self.settings_root, text="Background Color", command=self.change_bg_color).grid(row=3, column=0, columnspan=2, pady=2)
+        # Font color button
+        tk.Button(self.settings_root, text="Font Color", command=self.change_font_color).grid(row=3, column=0, columnspan=2, pady=2)
 
         # Format toggle button
         tk.Button(self.settings_root, text="Toggle 12/24 Hour", command=self.toggle_format).grid(row=4, column=0, columnspan=2, pady=2)
@@ -94,10 +112,10 @@ class WindowClock:
         tk.Button(self.settings_root, text="Apply", command=self.apply_settings).grid(row=5, column=0, pady=5)
         tk.Button(self.settings_root, text="Quit", command=self.settings_root.quit).grid(row=5, column=1, pady=5)
 
-    def change_bg_color(self):
-        color = colorchooser.askcolor(title="Choose background color", color=self.bg_color)[1]
+    def change_font_color(self):
+        color = colorchooser.askcolor(title="Choose font color", color=self.font_color)[1]
         if color:
-            self.bg_color = color
+            self.font_color = color
             self.apply_settings()
 
     def toggle_format(self):
@@ -113,8 +131,47 @@ class WindowClock:
         monitor = self.monitors[self.selected_monitor_index]
         geometry = f"{monitor.width}x{monitor.height}+{monitor.x}+{monitor.y}"
         self.clock_window.geometry(geometry)
-        self.label.configure(font=(self.font_family, self.font_size), bg=self.bg_color)
-        self.clock_window.configure(bg=self.bg_color)
+        self.canvas.configure(bg=self.bg_color)
+        self.canvas.itemconfigure(self.text_item, font=(self.font_family, self.font_size), fill=self.font_color)
+        if self.selection_rect:
+            bbox = self.canvas.bbox(self.text_item)
+            self.canvas.coords(self.selection_rect, bbox)
+
+    def on_text_press(self, event):
+        bbox = self.canvas.bbox(self.text_item)
+        if bbox and bbox[0] <= event.x <= bbox[2] and bbox[1] <= event.y <= bbox[3]:
+            self.dragging = True
+            self.drag_offset_x = event.x - bbox[0]
+            self.drag_offset_y = event.y - bbox[1]
+            if self.selection_rect:
+                self.canvas.coords(self.selection_rect, bbox)
+            else:
+                self.selection_rect = self.canvas.create_rectangle(bbox, outline='red', dash=(2, 2))
+        else:
+            if self.selection_rect:
+                self.canvas.delete(self.selection_rect)
+                self.selection_rect = None
+
+    def on_text_drag(self, event):
+        if self.dragging:
+            x = event.x - self.drag_offset_x
+            y = event.y - self.drag_offset_y
+            self.canvas.coords(self.text_item, x, y)
+            if self.selection_rect:
+                bbox = self.canvas.bbox(self.text_item)
+                self.canvas.coords(self.selection_rect, bbox)
+
+    def on_text_release(self, _event):
+        self.dragging = False
+
+    def on_mousewheel(self, event):
+        if self.selection_rect:
+            delta = 1 if getattr(event, 'delta', 0) > 0 or getattr(event, 'num', None) == 4 else -1
+            self.font_size = max(1, self.font_size + delta)
+            self.font_size_var.set(self.font_size)
+            self.canvas.itemconfigure(self.text_item, font=(self.font_family, self.font_size))
+            bbox = self.canvas.bbox(self.text_item)
+            self.canvas.coords(self.selection_rect, bbox)
 
     def get_time_str(self):
         now = datetime.now()
@@ -123,7 +180,7 @@ class WindowClock:
         return now.strftime('%H:%M:%S')
 
     def update_clock(self):
-        self.label.configure(text=self.get_time_str())
+        self.canvas.itemconfigure(self.text_item, text=self.get_time_str())
         self.clock_window.after(1000, self.update_clock)
 
     def run(self):
@@ -133,6 +190,7 @@ class WindowClock:
 def main():
     args = parse_args()
     clock = WindowClock(bg_color=args.bg_color,
+                        font_color=args.font_color,
                         font_size=args.font_size,
                         time_format=args.format)
     clock.run()
