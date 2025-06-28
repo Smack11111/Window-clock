@@ -110,7 +110,9 @@ class WindowClock:
             self.selected_monitor_index = self.monitor_names.index(self.monitor_var.get())
 
         monitor = self.monitors[self.selected_monitor_index]
-        geometry = f"{monitor.width}x{monitor.height}+{monitor.x}+{monitor.y}"
+        x_sign = '+' if monitor.x >= 0 else ''
+        y_sign = '+' if monitor.y >= 0 else ''
+        geometry = f"{monitor.width}x{monitor.height}{x_sign}{monitor.x}{y_sign}{monitor.y}"
         self.clock_window.geometry(geometry)
         self.canvas.configure(bg=self.bg_color)
         self.canvas.itemconfigure(self.text_item, font=(self.font_family, self.font_size), fill=self.font_color)
