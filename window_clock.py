@@ -3,33 +3,8 @@ import tkinter as tk
 from tkinter import colorchooser, ttk, font, messagebox
 from datetime import datetime
 
+from monitor_utils import enumerate_monitors
 
-def enumerate_monitors(root):
-    """Best effort attempt to list monitors."""
-    monitors = []
-    try:
-        from screeninfo import get_monitors
-        monitors = get_monitors()
-    except Exception:
-        pass
-
-    if not monitors:
-        # Fallback to single monitor using Tk info
-        class _Monitor:
-            def __init__(self, width, height, x=0, y=0, name="Default"):
-                self.width = width
-                self.height = height
-                self.x = x
-                self.y = y
-                self.name = name
-
-        monitors = [_Monitor(root.winfo_screenwidth(), root.winfo_screenheight())]
-        messagebox.showwarning(
-            "Monitor Detection",
-            "Multiple displays were not detected.\n"
-            "Install the 'screeninfo' package for multi-monitor support.")
-
-    return monitors
 
 
 def parse_args():
@@ -62,6 +37,8 @@ class WindowClock:
 
         # Populate settings UI
         self.monitors = enumerate_monitors(self.settings_root)
+        if len(self.monitors) == 1:
+            messagebox.showwarning("Monitor Detection", "Multiple displays were not detected.\nInstall the 'screeninfo' package for improved detection.")
         self.create_settings_ui()
 
         # Separate borderless window for the clock display
