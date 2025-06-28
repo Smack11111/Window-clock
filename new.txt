@@ -1,0 +1,4 @@
+Window Clock Idea:
+
+A simple graphical application that displays the current time in a separate window.
+The clock updates every second and offers customization options for background color, font size, and time format (12/24 hour).
