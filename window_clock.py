@@ -17,11 +17,17 @@ class WindowClock:
         self.bg_color = bg_color
         self.font_size = font_size
         self.time_format = time_format
-        self.root = tk.Tk()
-        self.root.title("Window Clock")
-        self.root.configure(bg=self.bg_color)
 
-        self.label = tk.Label(self.root, fg='white', bg=self.bg_color,
+        # Main window will hold settings
+        self.settings_root = tk.Tk()
+        self.settings_root.title("Clock Settings")
+
+        # Separate borderless window for the clock display
+        self.clock_window = tk.Toplevel(self.settings_root)
+        self.clock_window.overrideredirect(True)
+        self.clock_window.configure(bg=self.bg_color)
+
+        self.label = tk.Label(self.clock_window, fg='white', bg=self.bg_color,
                               font=('Helvetica', self.font_size))
         self.label.pack(padx=20, pady=20)
 
@@ -29,23 +35,23 @@ class WindowClock:
         self.update_clock()
 
     def create_menu(self):
-        menubar = tk.Menu(self.root)
+        menubar = tk.Menu(self.settings_root)
         settings_menu = tk.Menu(menubar, tearoff=0)
         settings_menu.add_command(label="Background Color", command=self.change_bg_color)
         settings_menu.add_command(label="Font Size", command=self.change_font_size)
         settings_menu.add_command(label="Toggle 12/24 Hour", command=self.toggle_format)
         menubar.add_cascade(label="Settings", menu=settings_menu)
-        self.root.config(menu=menubar)
+        self.settings_root.config(menu=menubar)
 
     def change_bg_color(self):
         color = colorchooser.askcolor(title="Choose background color", color=self.bg_color)[1]
         if color:
             self.bg_color = color
-            self.root.configure(bg=self.bg_color)
+            self.clock_window.configure(bg=self.bg_color)
             self.label.configure(bg=self.bg_color)
 
     def change_font_size(self):
-        size = simpledialog.askinteger("Font Size", "Enter font size", initialvalue=self.font_size)
+        size = simpledialog.askinteger("Font Size", "Enter font size", initialvalue=self.font_size, parent=self.settings_root)
         if size:
             self.font_size = size
             self.label.configure(font=('Helvetica', self.font_size))
@@ -61,10 +67,10 @@ class WindowClock:
 
     def update_clock(self):
         self.label.configure(text=self.get_time_str())
-        self.root.after(1000, self.update_clock)
+        self.clock_window.after(1000, self.update_clock)
 
     def run(self):
-        self.root.mainloop()
+        self.settings_root.mainloop()
 
 
 def main():
