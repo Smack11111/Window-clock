@@ -51,6 +51,10 @@ class WindowClock:
         self.font_family = 'Helvetica'
         self.selected_monitor_index = 0
         self.dragging = False
+        self.scaling = False
+        self.scale_handle = None
+        self.center_line_h = None
+        self.center_line_v = None
 
         # Main window will hold settings
         self.settings_root = tk.Tk()
@@ -136,33 +140,98 @@ class WindowClock:
         if self.selection_rect:
             bbox = self.canvas.bbox(self.text_item)
             self.canvas.coords(self.selection_rect, bbox)
+            if self.scale_handle:
+                self.canvas.coords(self.scale_handle, bbox[2], bbox[3], bbox[2] + 8, bbox[3] + 8)
 
     def on_text_press(self, event):
+        if self.scale_handle:
+            hx1, hy1, hx2, hy2 = self.canvas.coords(self.scale_handle)
+            if hx1 <= event.x <= hx2 and hy1 <= event.y <= hy2:
+                self.scaling = True
+                self.scale_start_y = event.y
+                self.initial_font_size = self.font_size
+                return
+
         bbox = self.canvas.bbox(self.text_item)
         if bbox and bbox[0] <= event.x <= bbox[2] and bbox[1] <= event.y <= bbox[3]:
             self.dragging = True
-            self.drag_offset_x = event.x - bbox[0]
-            self.drag_offset_y = event.y - bbox[1]
+            cx = (bbox[0] + bbox[2]) / 2
+            cy = (bbox[1] + bbox[3]) / 2
+            self.drag_offset_x = event.x - cx
+            self.drag_offset_y = event.y - cy
             if self.selection_rect:
                 self.canvas.coords(self.selection_rect, bbox)
             else:
                 self.selection_rect = self.canvas.create_rectangle(bbox, outline='red', dash=(2, 2))
+            if self.scale_handle:
+                self.canvas.coords(self.scale_handle, bbox[2], bbox[3], bbox[2] + 8, bbox[3] + 8)
+            else:
+                self.scale_handle = self.canvas.create_oval(bbox[2], bbox[3], bbox[2] + 8, bbox[3] + 8, fill='red', outline='')
         else:
             if self.selection_rect:
                 self.canvas.delete(self.selection_rect)
                 self.selection_rect = None
+            if self.scale_handle:
+                self.canvas.delete(self.scale_handle)
+                self.scale_handle = None
 
     def on_text_drag(self, event):
+        if self.scaling:
+            delta = event.y - self.scale_start_y
+            new_size = max(1, self.initial_font_size + delta)
+            if new_size != self.font_size:
+                self.font_size = new_size
+                self.font_size_var.set(self.font_size)
+                self.canvas.itemconfigure(self.text_item, font=(self.font_family, self.font_size))
+                bbox = self.canvas.bbox(self.text_item)
+                if self.selection_rect:
+                    self.canvas.coords(self.selection_rect, bbox)
+                if self.scale_handle:
+                    self.canvas.coords(self.scale_handle, bbox[2], bbox[3], bbox[2] + 8, bbox[3] + 8)
+            return
+
         if self.dragging:
             x = event.x - self.drag_offset_x
             y = event.y - self.drag_offset_y
+            cx = self.canvas.winfo_width() / 2
+            cy = self.canvas.winfo_height() / 2
+            snapped = False
+            if abs(x - cx) <= 10:
+                x = cx
+                snapped = True
+            if abs(y - cy) <= 10:
+                y = cy
+                snapped = True
+
             self.canvas.coords(self.text_item, x, y)
+            bbox = self.canvas.bbox(self.text_item)
             if self.selection_rect:
-                bbox = self.canvas.bbox(self.text_item)
                 self.canvas.coords(self.selection_rect, bbox)
+            if self.scale_handle:
+                self.canvas.coords(self.scale_handle, bbox[2], bbox[3], bbox[2] + 8, bbox[3] + 8)
+
+            if snapped:
+                if not self.center_line_v:
+                    self.center_line_v = self.canvas.create_line(cx, 0, cx, self.canvas.winfo_height(), fill='red', dash=(2, 2))
+                if not self.center_line_h:
+                    self.center_line_h = self.canvas.create_line(0, cy, self.canvas.winfo_width(), cy, fill='red', dash=(2, 2))
+            else:
+                if self.center_line_v:
+                    self.canvas.delete(self.center_line_v)
+                    self.center_line_v = None
+                if self.center_line_h:
+                    self.canvas.delete(self.center_line_h)
+                    self.center_line_h = None
 
     def on_text_release(self, _event):
         self.dragging = False
+        self.scaling = False
+        if self.center_line_v:
+            self.canvas.delete(self.center_line_v)
+            self.center_line_v = None
+        if self.center_line_h:
+            self.canvas.delete(self.center_line_h)
+            self.center_line_h = None
 
     def on_mousewheel(self, event):
         if self.selection_rect:
@@ -172,6 +241,8 @@ class WindowClock:
             self.canvas.itemconfigure(self.text_item, font=(self.font_family, self.font_size))
             bbox = self.canvas.bbox(self.text_item)
             self.canvas.coords(self.selection_rect, bbox)
+            if self.scale_handle:
+                self.canvas.coords(self.scale_handle, bbox[2], bbox[3], bbox[2] + 8, bbox[3] + 8)
 
     def get_time_str(self):
         now = datetime.now()
