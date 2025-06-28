@@ -116,6 +116,11 @@ class WindowClock:
         self.clock_window.geometry(geometry)
         self.canvas.configure(bg=self.bg_color)
         self.canvas.itemconfigure(self.text_item, font=(self.font_family, self.font_size), fill=self.font_color)
+        self.canvas.update_idletasks()
+        # Center the text within the resized window
+        cx = self.canvas.winfo_width() / 2
+        cy = self.canvas.winfo_height() / 2
+        self.canvas.coords(self.text_item, cx, cy)
         if self.selection_rect:
             bbox = self.canvas.bbox(self.text_item)
             self.canvas.coords(self.selection_rect, bbox)
